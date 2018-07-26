@@ -44,38 +44,57 @@ function processSearchResponse(response) {
   }
 }
 
-function processMovieDetailsResponse(movie) {
-  const movieDetailTemplate = `
-    <div class="movie-detail" data-movie-id="${movie.id}">
-      <p><strong>${movie.original_title}</strong></p>
-      <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
-      <p>
-        <em>Genres:</em>
-        <ul>
-          ${displayGenres(movie.id, movie.genres)}
-        </ul>
-      </p>
-      <p>
-        <em>Year</em>: ${movie.release_date.substring(0, 4)}
-      </p>
-      <p>
-        <em>Rating:</em> ${movie.vote_average}
-      </p>
-      <p>
-        <button class="btn-close">Close</button> 
-        <button class="btn-favorite" data-movie-title="${
-          movie.title
-        }" data-movie-id="${movie.id}">Add to favorites</button>
-      </p>
-    </div>
-  `;
+function createMovieElement(createMovieDetailsTemplate, createElement, movie) {
+  const movieDetailTemplate = createMovieDetailsTemplate(movie);
 
-  if (document.getElementsByClassName('movie-detail').length > 0) {
-    document.getElementsByClassName('movie-detail')[0].remove();
+  return createElement(movieDetailTemplate);
+}
+
+function createMovieDetailsTemplate(movie) {
+  return `
+  <div class="movie-detail" data-movie-id="${movie.id}">
+    <p><strong>${movie.original_title}</strong></p>
+    <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
+    <p>
+      <em>Genres:</em>
+      <ul>
+        ${displayGenres(movie.id, movie.genres)}
+      </ul>
+    </p>
+    <p>
+      <em>Year</em>: ${movie.release_date.substring(0, 4)}
+    </p>
+    <p>
+      <em>Rating:</em> ${movie.vote_average}
+    </p>
+    <p>
+      <button class="btn-close">Close</button> 
+      <button class="btn-favorite" data-movie-title="${
+        movie.title
+      }" data-movie-id="${movie.id}">Add to favorites</button>
+    </p>
+  </div>
+`;
+}
+
+function isElementOnPage(className) {
+  return document.getElementsByClassName(className).length > 0;
+}
+
+function removeFirstElement(className) {
+  document.getElementsByClassName(className)[0].remove();
+}
+
+function createElement(template) {
+  const el = document.createElement(template);
+  el.innerHTML = template;
+  return el;
+}
+
+function addElementToBody(isElementOnPage, removeFirstElement, el) {
+  if (isElementOnPage('movie-detail')) {
+    removeFirstElement('movie-detail');
   }
-
-  const el = document.createElement('template');
-  el.innerHTML = movieDetailTemplate;
   document.body.appendChild(el.content.firstElementChild);
   $('.movie-detail').animate(
     {
@@ -123,7 +142,11 @@ $(document).on('click', '.movie img, .movie p', e => {
     .closest('.movie')
     .data('movie-id')}?api_key=${apiKey}`;
   $.getJSON(movieDetailsUrl, response => {
-    processMovieDetailsResponse(response);
+    addElementToBody(
+      isElementOnPage,
+      removeFirstElement,
+      createMovieElement(createMovieDetailsTemplate, addElement, response)
+    );
   });
 });
 
