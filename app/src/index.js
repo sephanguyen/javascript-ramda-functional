@@ -86,7 +86,7 @@ function removeFirstElement(className) {
 }
 
 function createElement(template) {
-  const el = document.createElement(template);
+  const el = document.createElement('template');
   el.innerHTML = template;
   return el;
 }
@@ -145,7 +145,7 @@ $(document).on('click', '.movie img, .movie p', e => {
     addElementToBody(
       isElementOnPage,
       removeFirstElement,
-      createMovieElement(createMovieDetailsTemplate, addElement, response)
+      createMovieElement(createMovieDetailsTemplate, createElement, response)
     );
   });
 });
