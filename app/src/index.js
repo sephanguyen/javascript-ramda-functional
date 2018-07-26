@@ -6,41 +6,58 @@ function clearMovies() {
   document.getElementById('foundMovies').innerHTML = '';
 }
 
-function appendElement(parent, htmlText) {
-  const el = document.createElement('template');
-  el.innerHTML = htmlText;
+function appendElementToParent(parent, el) {
   document.getElementById(parent).appendChild(el.content.firstElementChild);
 }
 
-function displayMovies(movies, totalResults) {
+function displayMovies(
+  createMovieTemplate,
+  createElement,
+  appendElementToParent,
+  clearMovies,
+  movies,
+  totalResults
+) {
   clearMovies();
-  movies.forEach(movie => {
-    if (movie.poster_path !== null && movie.poster_path !== undefined) {
-      const template = `
-          <div class="movie" data-movie-id="${movie.id}">
-            <p><strong>${movie.original_title}</strong></p>
-            <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
-            <p>
-              <em>Year</em>: ${movie.release_date.substring(0, 4)}
-            </p>
-          </div>
-        `;
-      appendElement('foundMovies', template);
-    }
+  const moviesWithPoster = movies.filter(
+    movie => movie.poster_path !== null && movie.poster_path !== undefined
+  );
+  const moviesTemplates = moviesWithPoster.map(createMovieTemplate);
+  moviesTemplates.forEach(movie => {
+    appendElementToParent('foundMovies', createElement(movie));
   });
 }
 
-function movieNotFound() {
+function createMovieTemplate(movie) {
+  return `
+  <div class="movie" data-movie-id="${movie.id}">
+    <p><strong>${movie.original_title}</strong></p>
+    <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
+    <p>
+      <em>Year</em>: ${movie.release_date.substring(0, 4)}
+    </p>
+  </div>
+`;
+}
+
+function movieNotFound(clearMovies) {
   clearMovies();
   const template = `<strong>I'm sorry, we could not found the movie you were looking for<strong>`;
-  appendElement('foundMovies', template);
+  appendElementToParent('foundMovies', createElement(template));
 }
 
 function processSearchResponse(response) {
   if (response.total_results > 0) {
-    displayMovies(response.results, response.total_results);
+    displayMovies(
+      createMovieTemplate,
+      createElement,
+      appendElementToParent,
+      clearMovies,
+      response.results,
+      response.total_results
+    );
   } else {
-    movieNotFound();
+    movieNotFound(clearMovies);
   }
 }
 
@@ -125,7 +142,7 @@ function ratingsOptions(r) {
 function displayFavoriteMovies() {
   document.getElementById('favorites').innerHTML = '';
   for (let movieId of Object.keys(favoriteMovies)) {
-    appendElement(
+    appendElementToParent(
       'favorites',
       `<li><span>${
         favoriteMovies[movieId].title
