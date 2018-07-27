@@ -1,22 +1,18 @@
 const apiKey = require('./apiKey');
 const userMoviesService = require('./userMoviesService');
-const favoriteMovies = userMoviesService.loadSavedMovies();
+const R = require('ramda');
 
-function clearElement(id) {
-  document.getElementById(id).innerHTML = '';
-}
+const createFavoriteMovieTemplate = R.curry(function(ratingsOptions, movie) {
+  return `<li><span>${movie.title}</span> 
+    <select class="movie-rating" data-movie-id="${movie.id}">
+      ${ratingsOptions(movie.rating)}
+    </select> 
+    <a href="#" class="remove-favorite" data-movie-id="${
+      movie.id
+    }">Remove</a></li>`;
+});
 
-function appendElementToParent(parent, el) {
-  document.getElementById(parent).appendChild(el.content.firstElementChild);
-}
-
-function createMoviesElement(
-  createMovieTemplate,
-  createElement,
-  appendElementToParent,
-  movies,
-  totalResults
-) {
+function createMoviesElements(createElement, createMovieTemplate, movies) {
   return movies
     .filter(
       movie => movie.poster_path !== null && movie.poster_path !== undefined
@@ -25,138 +21,110 @@ function createMoviesElement(
     .map(createElement);
 }
 
-function createMovieTemplate(movie) {
-  return `
-  <div class="movie" data-movie-id="${movie.id}">
-    <p><strong>${movie.original_title}</strong></p>
-    <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
-    <p>
-      <em>Year</em>: ${movie.release_date.substring(0, 4)}
-    </p>
-  </div>
-`;
-}
+const createElementFromData = R.curry(function(
+  createElement,
+  createTemplate,
+  data
+) {
+  const movieDetailTemplate = createTemplate(data);
+  return createElement(movieDetailTemplate);
+});
 
-function createMovieNotFoundElement(createElement) {
-  const template = `<strong>I'm sorry, we could not found the movie you were looking for<strong>`;
-  return createElement(template);
-}
+const createMovieNotFoundElement = createElementFromData(
+  createElement,
+  createMovieNotFoundTemplate
+);
+
+const createMovieElement = createElementFromData(
+  createElement,
+  createMovieDetailsTemplate
+);
+
+const createFavoriteMovieElement = createElementFromData(
+  createElement,
+  createFavoriteMovieTemplate(ratingsOptions)
+);
 
 function processSearchResponse(response) {
   clearElement('foundMovies');
   const elements =
     response.total_results > 0
-      ? createMoviesElement(
-          createMovieTemplate,
+      ? createMoviesElements(
           createElement,
-          appendElementToParent,
-          response.results,
-          response.total_results
+          createMovieTemplate,
+          response.results
         )
-      : [createMovieNotFoundElement(createElement)];
+      : [createMovieNotFoundElement({})];
   elements.forEach(el => appendElementToParent('foundMovies', el));
-}
-
-function createMovieElement(createMovieDetailsTemplate, createElement, movie) {
-  const movieDetailTemplate = createMovieDetailsTemplate(movie);
-
-  return createElement(movieDetailTemplate);
-}
-
-function createMovieDetailsTemplate(movie) {
-  return `
-  <div class="movie-detail" data-movie-id="${movie.id}">
-    <p><strong>${movie.original_title}</strong></p>
-    <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
-    <p>
-      <em>Genres:</em>
-      <ul>
-        ${displayGenres(movie.id, movie.genres)}
-      </ul>
-    </p>
-    <p>
-      <em>Year</em>: ${movie.release_date.substring(0, 4)}
-    </p>
-    <p>
-      <em>Rating:</em> ${movie.vote_average}
-    </p>
-    <p>
-      <button class="btn-close">Close</button> 
-      <button class="btn-favorite" data-movie-title="${
-        movie.title
-      }" data-movie-id="${movie.id}">Add to favorites</button>
-    </p>
-  </div>
-`;
-}
-
-function isElementOnPage(className) {
-  return document.getElementsByClassName(className).length > 0;
-}
-
-function removeFirstElement(className) {
-  document.getElementsByClassName(className)[0].remove();
-}
-
-function createElement(template) {
-  const el = document.createElement('template');
-  el.innerHTML = template;
-  return el;
-}
-
-function addElementToBody(isElementOnPage, removeFirstElement, el) {
-  if (isElementOnPage('movie-detail')) {
-    removeFirstElement('movie-detail');
-  }
-  document.body.appendChild(el.content.firstElementChild);
-  $('.movie-detail').animate(
-    {
-      opacity: 1
-    },
-    300
-  );
-}
-
-// function isDetailsBeingDisplayed() {
-//   return ;
-// }
-
-function displayGenres(id, genres) {
-  return genres.map(genre => `<li>${genre.name}</li>`).join('');
-}
-
-function ratingsOptions(r) {
-  let ratings = '<option>Rate this movie</option>';
-  for (let i = 10; i > 0; i--) {
-    ratings += `<option ${i == r ? 'selected' : ''}>${i}</option>`;
-  }
-  return ratings;
 }
 
 function displayFavoriteMovies(favorites) {
   clearElement('favorites');
   Object.keys(favorites)
-    .map(movieId =>
-      createFavoriteMovieElement(
-        createElement,
-        ratingsOptions,
-        favorites[movieId]
-      )
-    )
-    .forEach(el => appendElementToParent('favorites', el));
+    .map(movieId => createFavoriteMovieElement(favorites[movieId]))
+    .forEach(e => appendElementToParent('favorites', e));
 }
 
-function createFavoriteMovieElement(createElement, ratingsOptions, movie) {
-  const template = `<li><span>${
-    movie.title
-  }</span> <select class="movie-rating" data-movie-id="${
-    movie.id
-  }">${ratingsOptions(
-    movie.rating
-  )}</select> <a href="#" class="remove-favorite" data-movie-id="${
-    movie.id
-  }">Remove</a></li>`;
-  return createElement(template);
+function displayMovieDetails(movie) {
+  const element = createMovieElement(movie);
+  addElementToBody(isElementOnPage, removeElement, element);
+}
+
+function createGenresTemplate(genres) {
+  return genres.map(genre => `<li>${genre.name}</li>`).join('');
+}
+
+function ratingsOptions(r) {
+  return [
+    '<option>Rate this movie</option>',
+    ...R.range(1, 11)
+      .reverse()
+      .map(i => `<option ${i == r ? 'selected' : ''}>${i}</option>`)
+  ];
+}
+
+function createMovieTemplate(movie) {
+  return `
+    <div class="movie" data-movie-id="${movie.id}">
+      <p><strong>${movie.original_title}</strong></p>
+      <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
+      <p>
+        <em>Year</em>: ${movie.release_date.substring(0, 4)}
+      </p>
+    </div>
+  `;
+}
+
+function createMovieDetailsTemplate(movie) {
+  return `
+    <div class="movie-detail" data-movie-id="${movie.id}">
+      <p><strong>${movie.original_title}</strong></p>
+      <img src="https://image.tmdb.org/t/p/w185${movie.poster_path}" />
+      <p>
+        <em>Genres:</em>
+        <ul>
+          ${createGenresTemplate(movie.genres)}
+        </ul>
+      </p>
+      <p>
+        <em>Year</em>: ${movie.release_date.substring(0, 4)}
+      </p>
+      <p>
+        <em>Rating:</em> ${movie.vote_average}
+      </p>
+      <p>
+        <button class="btn-close">Close</button> 
+        <button class="btn-favorite" 
+          data-movie-title="${movie.title}" data-movie-id="${movie.id}">
+            Add to favorites
+        </button>
+      </p>
+    </div>
+  `;
+}
+
+function createMovieNotFoundTemplate() {
+  return `<strong>I'm sorry, we could not found the movie you were looking for<strong>`;
 }
 
 $(document).on('click', '.movie img, .movie p', e => {
@@ -165,11 +133,7 @@ $(document).on('click', '.movie img, .movie p', e => {
     .closest('.movie')
     .data('movie-id')}?api_key=${apiKey}`;
   $.getJSON(movieDetailsUrl, response => {
-    addElementToBody(
-      isElementOnPage,
-      removeFirstElement,
-      createMovieElement(createMovieDetailsTemplate, createElement, response)
-    );
+    displayMovieDetails(response);
   });
 });
 
@@ -193,11 +157,10 @@ $(document).on('click', '.btn-close', function() {
 
 $(document).on('click', '.btn-favorite', function() {
   const movieKey = $(this).data('movie-id');
-  if (!favoriteMovies[movieKey]) {
+  if (!userMoviesService.loadSavedMovies()[movieKey]) {
     const title = $(this).data('movie-title');
-    favoriteMovies[movieKey] = { title };
     userMoviesService.addFavorite(movieKey, title);
-    displayFavoriteMovies(favoriteMovies);
+    displayFavoriteMovies(userMoviesService.loadSavedMovies());
   }
   $(this)
     .closest('div')
@@ -209,9 +172,8 @@ $(document).on('click', '.btn-favorite', function() {
 $(document).on('click', '.remove-favorite', function(e) {
   e.preventDefault();
   const movieId = $(this).data('movie-id');
-  delete favoriteMovies[movieId];
   userMoviesService.removeFavorite(movieId);
-  displayFavoriteMovies(favoriteMovies);
+  displayFavoriteMovies(userMoviesService.loadSavedMovies());
 });
 
 $(document).on('change', '.movie-rating', function() {
@@ -220,6 +182,41 @@ $(document).on('change', '.movie-rating', function() {
   userMoviesService.rateMovie(movieId, rating);
 });
 
+function clearElement(id) {
+  document.getElementById(id).innerHTML = '';
+}
+
+function appendElementToParent(parent, el) {
+  document.getElementById(parent).appendChild(el.content.firstElementChild);
+}
+
+function createElement(template) {
+  const el = document.createElement('template');
+  el.innerHTML = template;
+  return el;
+}
+
+function addElementToBody(isElementOnPage, removeElement, el) {
+  if (isElementOnPage('movie-detail')) {
+    removeElement('movie-detail');
+  }
+  document.body.appendChild(el.content.firstElementChild);
+  $('.movie-detail').animate(
+    {
+      opacity: 1
+    },
+    300
+  );
+}
+
+function removeElement(className) {
+  document.getElementsByClassName(className)[0].remove();
+}
+
+function isElementOnPage(className) {
+  return document.getElementsByClassName(className).length > 0;
+}
+
 window.onload = function() {
-  displayFavoriteMovies(favoriteMovies);
+  displayFavoriteMovies(userMoviesService.loadSavedMovies());
 };
