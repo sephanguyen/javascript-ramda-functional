@@ -2,30 +2,27 @@ const apiKey = require('./apiKey');
 const userMoviesService = require('./userMoviesService');
 const favoriteMovies = userMoviesService.loadSavedMovies();
 
-function clearMovies() {
-  document.getElementById('foundMovies').innerHTML = '';
+function clearElement(id) {
+  document.getElementById(id).innerHTML = '';
 }
 
 function appendElementToParent(parent, el) {
   document.getElementById(parent).appendChild(el.content.firstElementChild);
 }
 
-function displayMovies(
+function createMoviesElement(
   createMovieTemplate,
   createElement,
   appendElementToParent,
-  clearMovies,
   movies,
   totalResults
 ) {
-  clearMovies();
-  const moviesWithPoster = movies.filter(
-    movie => movie.poster_path !== null && movie.poster_path !== undefined
-  );
-  const moviesTemplates = moviesWithPoster.map(createMovieTemplate);
-  moviesTemplates.forEach(movie => {
-    appendElementToParent('foundMovies', createElement(movie));
-  });
+  return movies
+    .filter(
+      movie => movie.poster_path !== null && movie.poster_path !== undefined
+    )
+    .map(createMovieTemplate)
+    .map(createElement);
 }
 
 function createMovieTemplate(movie) {
@@ -40,25 +37,24 @@ function createMovieTemplate(movie) {
 `;
 }
 
-function movieNotFound(clearMovies) {
-  clearMovies();
+function createMovieNotFoundElement(createElement) {
   const template = `<strong>I'm sorry, we could not found the movie you were looking for<strong>`;
-  appendElementToParent('foundMovies', createElement(template));
+  return createElement(template);
 }
 
 function processSearchResponse(response) {
-  if (response.total_results > 0) {
-    displayMovies(
-      createMovieTemplate,
-      createElement,
-      appendElementToParent,
-      clearMovies,
-      response.results,
-      response.total_results
-    );
-  } else {
-    movieNotFound(clearMovies);
-  }
+  clearElement('foundMovies');
+  const elements =
+    response.total_results > 0
+      ? createMoviesElement(
+          createMovieTemplate,
+          createElement,
+          appendElementToParent,
+          response.results,
+          response.total_results
+        )
+      : [createMovieNotFoundElement(createElement)];
+  elements.forEach(el => appendElementToParent('foundMovies', el));
 }
 
 function createMovieElement(createMovieDetailsTemplate, createElement, movie) {
@@ -126,9 +122,7 @@ function addElementToBody(isElementOnPage, removeFirstElement, el) {
 // }
 
 function displayGenres(id, genres) {
-  let genresList = '';
-  genres.forEach(genre => (genresList += `<li>${genre.name}</li>`));
-  return genresList;
+  return genres.map(genre => `<li>${genre.name}</li>`).join('');
 }
 
 function ratingsOptions(r) {
@@ -139,18 +133,30 @@ function ratingsOptions(r) {
   return ratings;
 }
 
-function displayFavoriteMovies() {
-  document.getElementById('favorites').innerHTML = '';
-  for (let movieId of Object.keys(favoriteMovies)) {
-    appendElementToParent(
-      'favorites',
-      `<li><span>${
-        favoriteMovies[movieId].title
-      }</span> <select class="movie-rating" data-movie-id="${movieId}">${ratingsOptions(
-        favoriteMovies[movieId].rating
-      )}</select> <a href="#" class="remove-favorite" data-movie-id="${movieId}">Remove</a></li>`
-    );
-  }
+function displayFavoriteMovies(favorites) {
+  clearElement('favorites');
+  Object.keys(favorites)
+    .map(movieId =>
+      createFavoriteMovieElement(
+        createElement,
+        ratingsOptions,
+        favorites[movieId]
+      )
+    )
+    .forEach(el => appendElementToParent('favorites', el));
+}
+
+function createFavoriteMovieElement(createElement, ratingsOptions, movie) {
+  const template = `<li><span>${
+    movie.title
+  }</span> <select class="movie-rating" data-movie-id="${
+    movie.id
+  }">${ratingsOptions(
+    movie.rating
+  )}</select> <a href="#" class="remove-favorite" data-movie-id="${
+    movie.id
+  }">Remove</a></li>`;
+  return createElement(template);
 }
 
 $(document).on('click', '.movie img, .movie p', e => {
@@ -191,7 +197,7 @@ $(document).on('click', '.btn-favorite', function() {
     const title = $(this).data('movie-title');
     favoriteMovies[movieKey] = { title };
     userMoviesService.addFavorite(movieKey, title);
-    displayFavoriteMovies();
+    displayFavoriteMovies(favoriteMovies);
   }
   $(this)
     .closest('div')
@@ -205,7 +211,7 @@ $(document).on('click', '.remove-favorite', function(e) {
   const movieId = $(this).data('movie-id');
   delete favoriteMovies[movieId];
   userMoviesService.removeFavorite(movieId);
-  displayFavoriteMovies();
+  displayFavoriteMovies(favoriteMovies);
 });
 
 $(document).on('change', '.movie-rating', function() {
@@ -215,5 +221,5 @@ $(document).on('change', '.movie-rating', function() {
 });
 
 window.onload = function() {
-  displayFavoriteMovies();
+  displayFavoriteMovies(favoriteMovies);
 };
