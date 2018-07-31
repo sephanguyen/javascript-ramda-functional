@@ -2,6 +2,8 @@ const apiKey = require('./apiKey');
 const userMoviesService = require('./userMoviesService');
 const R = require('ramda');
 
+//createMovieElement:: (Number -> [String]) -> Movie -> String
+
 const createFavoriteMovieTemplate = R.curry(function(ratingsOptions, movie) {
   return `<li><span>${movie.title}</span> 
     <select class="movie-rating" data-movie-id="${movie.id}">
@@ -12,15 +14,73 @@ const createFavoriteMovieTemplate = R.curry(function(ratingsOptions, movie) {
     }">Remove</a></li>`;
 });
 
-function createMoviesElements(createElement, createMovieTemplate, movies) {
-  return movies
-    .filter(
-      movie => movie.poster_path !== null && movie.poster_path !== undefined
-    )
-    .map(createMovieTemplate)
-    .map(createElement);
-}
+const log = R.curry((prefix, data) => console.log(prefix, data));
 
+//isNotNil :: a -> Boolean
+const isNotNil = R.compose(
+  R.not,
+  R.isNil
+);
+
+//hasPoster :: Movie -> Boolean
+const hasPoster = R.compose(
+  isNotNil,
+  R.prop('poster_path')
+);
+
+const createMoviesElements = R.compose(
+  R.map(
+    R.compose(
+      createElement,
+      R.tap(log('createMovieTemplate')),
+      createMovieTemplate
+    )
+  ),
+  R.tap(log('createMovieTemplate')),
+  R.filter(hasPoster)
+);
+//R.tap() //for return because function programing need return value
+// function createMoviesElements(createElement, createMovieTemplate, movies) {
+//   return movies
+//     .filter(hasPoster)
+//     .map(createMovieTemplate)
+//     .map(createElement);
+// }
+
+const createGenresTemplate = R.compose(
+  R.join(''),
+  R.map(genre => `<li>${genre.name}</li>`)
+);
+
+// function createGenresTemplate(genres) {
+//   return genres.map(genre => `<li>${genre.name}</li>`).join('');
+// }
+//reversedRange Number-> Number -> [Number]
+const reversedRange = R.compose(
+  R.reverse,
+  R.range
+);
+
+// function ratingsOptions(r) {
+//   return [
+//     '<option>Rate this movie</option>',
+//     ...reversedRange(1, 11).map(
+//       i => `<option ${i == r ? 'selected' : ''}>${i}</option>`
+//     )
+//   ];
+// }
+
+const ratingsOptions = r => {
+  console.log('afcasd');
+  return R.compose(
+    R.concat(['<option>Rate this movie</option>']),
+    R.tap(log('rate option movie')),
+    R.map(i => `<option ${i == r ? 'selected' : ''}>${i}</option>`),
+    reversedRange
+  )(1, 11);
+};
+
+//createElementFromData:: (String ->HtmlElement) -> (Object -> String) -> Object -> HtmlElement
 const createElementFromData = R.curry(function(
   createElement,
   createTemplate,
@@ -30,15 +90,21 @@ const createElementFromData = R.curry(function(
   return createElement(movieDetailTemplate);
 });
 
+//createElementFromData:: Object ->HtmlElement
+
 const createMovieNotFoundElement = createElementFromData(
   createElement,
   createMovieNotFoundTemplate
 );
 
+//createMovieElement:: Movie ->HtmlElement
+
 const createMovieElement = createElementFromData(
   createElement,
   createMovieDetailsTemplate
 );
+
+////createMovieElement:: FavoriteMovie ->HtmlElement
 
 const createFavoriteMovieElement = createElementFromData(
   createElement,
@@ -49,11 +115,7 @@ function processSearchResponse(response) {
   clearElement('foundMovies');
   const elements =
     response.total_results > 0
-      ? createMoviesElements(
-          createElement,
-          createMovieTemplate,
-          response.results
-        )
+      ? createMoviesElements(response.results)
       : [createMovieNotFoundElement({})];
   elements.forEach(el => appendElementToParent('foundMovies', el));
 }
@@ -68,19 +130,6 @@ function displayFavoriteMovies(favorites) {
 function displayMovieDetails(movie) {
   const element = createMovieElement(movie);
   addElementToBody(isElementOnPage, removeElement, element);
-}
-
-function createGenresTemplate(genres) {
-  return genres.map(genre => `<li>${genre.name}</li>`).join('');
-}
-
-function ratingsOptions(r) {
-  return [
-    '<option>Rate this movie</option>',
-    ...R.range(1, 11)
-      .reverse()
-      .map(i => `<option ${i == r ? 'selected' : ''}>${i}</option>`)
-  ];
 }
 
 function createMovieTemplate(movie) {
