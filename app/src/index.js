@@ -4,6 +4,28 @@ const R = require('ramda');
 
 //createMovieElement:: (Number -> [String]) -> Movie -> String
 
+function clearElement(id) {
+  document.getElementById(id).innerHTML = '';
+}
+
+function appendElementToParent(parent, el) {
+  document.getElementById(parent).appendChild(el.content.firstElementChild);
+}
+
+function createElement(template) {
+  const el = document.createElement('template');
+  el.innerHTML = template;
+  return el;
+}
+
+function removeElement(className) {
+  document.getElementsByClassName(className)[0].remove();
+}
+
+function isElementOnPage(className) {
+  return document.getElementsByClassName(className).length > 0;
+}
+
 const createFavoriteMovieTemplate = R.curry(function(ratingsOptions, movie) {
   return `<li><span>${movie.title}</span> 
     <select class="movie-rating" data-movie-id="${movie.id}">
@@ -176,74 +198,176 @@ function createMovieNotFoundTemplate() {
   return `<strong>I'm sorry, we could not found the movie you were looking for<strong>`;
 }
 
-$(document).on('click', '.movie img, .movie p', e => {
-  e.preventDefault();
-  const movieDetailsUrl = `https://api.themoviedb.org/3/movie/${$(e.target)
-    .closest('.movie')
-    .data('movie-id')}?api_key=${apiKey}`;
-  $.getJSON(movieDetailsUrl, response => {
-    displayMovieDetails(response);
-  });
+//handleEvent :: String -> String -> ( a-> *) -> *
+const handleEvent = R.curry((eventName, target, callback) => {
+  $(document).on(eventName, target, callback);
 });
 
-$(document).on('click', 'button[type=submit]', e => {
-  e.preventDefault();
-  const url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${$(
-    '#search'
-  ).val()}`;
-  $.getJSON(url, response => {
-    processSearchResponse(response);
-  });
+const onClick = handleEvent('click');
+
+//getJson :: (Event -> String) -> (a -> *) -> Event -> *
+const getJson = R.curry((urlBuilder, processResult, e) => {
+  console.log(urlBuilder(e));
+  $.getJSON(urlBuilder(e))
+    .done(processResult)
+    .fail(err => log('Error when search for movies: ', err));
 });
 
-$(document).on('click', '.btn-close', function() {
-  $(this)
+//getDataAttrValue:: String -> HTMLElement -> a
+const getDataAttrValue = R.curry((attr, el) => {
+  return $(el).data(attr);
+});
+
+//getClosesMovie: HTMLElement -> HTMLElement
+function getClosestMovie(el) {
+  return $(el).closest('.movie');
+}
+
+//fadeOut: HTMLElement -> *
+function fadeOut(el) {
+  $(el)
     .closest('div')
     .animate({ opacity: 0 }, 300, function() {
-      $(this).remove();
+      $(el).remove();
     });
+}
+
+//getValue: String -> String
+function getValue(id) {
+  console.log(id);
+  return $(`#${id}`).val();
+}
+
+//getMovieId: HTMLElement -> String
+const getMovieId = getDataAttrValue('movie-id');
+
+//getMovieId: HTMLElement -> String
+const findMovieId = R.compose(
+  getMovieId,
+  getClosestMovie
+);
+
+//movieDetailsUrl = (HTMLElement-> String) -> String -> Event -> String
+const movieDetailsUrl = R.curry((findMovieId, apiKey, e) => {
+  return `https://api.themoviedb.org/3/movie/${findMovieId(
+    e.target
+  )}?api_key=${apiKey}`;
 });
 
-$(document).on('click', '.btn-favorite', function() {
-  const movieKey = $(this).data('movie-id');
-  if (!userMoviesService.loadSavedMovies()[movieKey]) {
-    const title = $(this).data('movie-title');
-    userMoviesService.addFavorite(movieKey, title);
-    displayFavoriteMovies(userMoviesService.loadSavedMovies());
+//getMoviesDetails :: Event -> *
+const getMoviesDetails = getJson(
+  movieDetailsUrl(findMovieId, apiKey),
+  displayMovieDetails
+);
+
+onClick('.movie img, .movie p', function(e) {
+  e.preventDefault();
+  getMoviesDetails(e);
+});
+
+//searchUrl :: (String -> String) -> String -> Event -> String
+const searchUrl = R.curry((getValue, apiKey, e) => {
+  return `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${getValue(
+    'search'
+  )}`;
+});
+
+const searchForMovies = getJson(
+  searchUrl(getValue, apiKey),
+  processSearchResponse
+);
+onClick('button[type=submit]', function(e) {
+  e.preventDefault();
+  searchForMovies(e);
+});
+
+onClick('.btn-close', function() {
+  fadeOut(this);
+});
+
+function addMovieToFavorites(moviesService, movieId, title) {
+  if (!moviesService.loadSavedMovies()[movieId]) {
+    moviesService.addFavorite(movieId, title);
   }
-  $(this)
-    .closest('div')
-    .animate({ opacity: 0 }, 300, function() {
-      $(this).remove();
-    });
+}
+
+onClick('.btn-favorite', function() {
+  addMovieToFavorites(
+    userMoviesService,
+    getMovieId(this),
+    getDataAttrValue('movie-title', this)
+  );
+  displayFavoriteMovies(userMoviesService.loadSavedMovies());
+  fadeOut(this);
 });
 
-$(document).on('click', '.remove-favorite', function(e) {
+onClick('.remove-favorite', function(e) {
   e.preventDefault();
-  const movieId = $(this).data('movie-id');
+  const movieId = getMovieId(this);
   userMoviesService.removeFavorite(movieId);
   displayFavoriteMovies(userMoviesService.loadSavedMovies());
 });
 
-$(document).on('change', '.movie-rating', function() {
-  const movieId = $(this).data('movie-id');
+handleEvent('change', 'movie-rating', function() {
+  const movieId = getMovieId(this);
   var rating = $(this).val();
   userMoviesService.rateMovie(movieId, rating);
 });
 
-function clearElement(id) {
-  document.getElementById(id).innerHTML = '';
-}
+// $(document).on('click', '.movie img, .movie p', e => {
+//   e.preventDefault();
+//   const movieDetailsUrl = `https://api.themoviedb.org/3/movie/${$(e.target)
+//     .closest('.movie')
+//     .data('movie-id')}?api_key=${apiKey}`;
+//   $.getJSON(movieDetailsUrl, response => {
+//     displayMovieDetails(response);
+//   });
+// });
 
-function appendElementToParent(parent, el) {
-  document.getElementById(parent).appendChild(el.content.firstElementChild);
-}
+// $(document).on('click', 'button[type=submit]', e => {
+//   e.preventDefault();
+//   const url = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${$(
+//     '#search'
+//   ).val()}`;
+//   $.getJSON(url, response => {
+//     processSearchResponse(response);
+//   });
+// });
 
-function createElement(template) {
-  const el = document.createElement('template');
-  el.innerHTML = template;
-  return el;
-}
+// $(document).on('click', '.btn-close', function() {
+//   $(this)
+//     .closest('div')
+//     .animate({ opacity: 0 }, 300, function() {
+//       $(this).remove();
+//     });
+// });
+
+// $(document).on('click', '.btn-favorite', function() {
+//   const movieKey = $(this).data('movie-id');
+//   if (!userMoviesService.loadSavedMovies()[movieKey]) {
+//     const title = $(this).data('movie-title');
+//     userMoviesService.addFavorite(movieKey, title);
+//     displayFavoriteMovies(userMoviesService.loadSavedMovies());
+//   }
+//   $(this)
+//     .closest('div')
+//     .animate({ opacity: 0 }, 300, function() {
+//       $(this).remove();
+//     });
+// });
+
+// $(document).on('click', '.remove-favorite', function(e) {
+//   e.preventDefault();
+//   const movieId = $(this).data('movie-id');
+//   userMoviesService.removeFavorite(movieId);
+//   displayFavoriteMovies(userMoviesService.loadSavedMovies());
+// });
+
+// $(document).on('change', '.movie-rating', function() {
+//   const movieId = $(this).data('movie-id');
+//   var rating = $(this).val();
+//   userMoviesService.rateMovie(movieId, rating);
+// });
 
 function addElementToBody(isElementOnPage, removeElement, el) {
   if (isElementOnPage('movie-detail')) {
@@ -256,14 +380,6 @@ function addElementToBody(isElementOnPage, removeElement, el) {
     },
     300
   );
-}
-
-function removeElement(className) {
-  document.getElementsByClassName(className)[0].remove();
-}
-
-function isElementOnPage(className) {
-  return document.getElementsByClassName(className).length > 0;
 }
 
 window.onload = function() {
