@@ -3,13 +3,12 @@ const userMoviesService = require('./userMoviesService');
 const R = require('ramda');
 
 //createMovieElement:: (Number -> [String]) -> Movie -> String
+const appendElementToParent = R.curry((parent, el) => {
+  document.getElementById(parent).appendChild(el.content.firstElementChild);
+});
 
 function clearElement(id) {
   document.getElementById(id).innerHTML = '';
-}
-
-function appendElementToParent(parent, el) {
-  document.getElementById(parent).appendChild(el.content.firstElementChild);
 }
 
 function createElement(template) {
@@ -133,14 +132,41 @@ const createFavoriteMovieElement = createElementFromData(
   createFavoriteMovieTemplate(ratingsOptions)
 );
 
-function processSearchResponse(response) {
-  clearElement('foundMovies');
-  const elements =
-    response.total_results > 0
-      ? createMoviesElements(response.results)
-      : [createMovieNotFoundElement({})];
-  elements.forEach(el => appendElementToParent('foundMovies', el));
-}
+const searchHasResults = R.compose(
+  R.lt(0),
+  R.prop('total_results')
+);
+const createElementsFromResults = R.compose(
+  createMoviesElements,
+  R.prop('results')
+);
+const createArrayWithNotFound = R.always([createMovieNotFoundElement({})]);
+
+const processSearchResponse = R.compose(
+  R.forEach(appendElementToParent('foundMovies')),
+  R.ifElse(
+    searchHasResults,
+    createElementsFromResults,
+    createArrayWithNotFound
+  ),
+  R.tap(() => clearElement('foundMovies'))
+);
+
+// function processSearchResponse(response) {
+//   clearElement('foundMovies');
+//   // const elements =
+//   //   response.total_results > 0
+//   //     ? createMoviesElements(response.results)
+//   //     : [createMovieNotFoundElement({})];
+//   // elements.forEach(el => appendElementToParent('foundMovies', el));
+
+//   const elements = R.ifElse(
+//     searchHasResults,
+//     createElementsFromResults,
+//     createArrayWithNotFound
+//   )(response);
+//   elements.forEach();
+// }
 
 function displayFavoriteMovies(favorites) {
   clearElement('favorites');
@@ -276,10 +302,16 @@ const searchForMovies = getJson(
   searchUrl(getValue, apiKey),
   processSearchResponse
 );
-onClick('button[type=submit]', function(e) {
-  e.preventDefault();
-  searchForMovies(e);
-});
+
+const isNotEmpty = R.compose(
+  R.not,
+  R.isEmpty
+);
+window.searchIfNotEmpty = R.ifElse(
+  isNotEmpty,
+  searchForMovies,
+  log('a search term should be provided')
+);
 
 onClick('.btn-close', function() {
   fadeOut(this);

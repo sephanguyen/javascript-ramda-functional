@@ -4,7 +4,7 @@
     <link rel="stylesheet" href="src/styles.css">
   </head>
   <body>
-    <form action="#" method="GET">
+    <form action="#" method="GET" onsubmit="javascript:searchIfNotEmpty(document.getElementById('search').value)">
       <p>
         <input type="text" id="search" placeholder="Search for a movie" autocomplete="off" />
         <button type="submit">Search</button>
